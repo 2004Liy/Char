@@ -113,6 +113,7 @@ void SendData::on_filereadyRead()//处理filesocket接收的消息
                 }else if(ctx->type=="sendpicture"){
                     emit friendsendpicture(ctx->friendid,ctx->data,ctx->h,ctx->w);
                 }else if(ctx->type=="friendpicturechanged"){
+                    qDebug()<<"-----------更换头像"<<'\n';
                     emit friendpicturechanged(ctx->friendid,ctx->data);
                 }else if(ctx->type=="creategroupchat"){
                     emit creategroupchat(ctx->friendname,ctx->friendid,ctx->data);
@@ -449,6 +450,7 @@ void SendData::addfilequeue(qint64 fileid, QString type,qint64 size,int friendid
         }else if(newctx.type=="sendpicture"){
             emit friendsendpicture(newctx.friendid,newctx.data,newctx.h,newctx.w);
         }else if(newctx.type=="friendpicturechanged"){
+            qDebug()<<"-----------更换头像"<<'\n';
             emit friendpicturechanged(newctx.friendid,newctx.data);
         }else if(newctx.type=="creategroupchat"){
             emit creategroupchat(newctx.friendname,newctx.friendid,newctx.data);
@@ -548,6 +550,7 @@ void SendData::on_updateinformation(int id, QString name, QString path)//更新�
 
 void SendData::on_updatenameonly(int id, QString name)
 {
+    qDebug()<<"只修改名字"<<'\n';
     QJsonObject json;
     json["type"]="updatenameonly";
     json["id"]=id;
@@ -733,6 +736,7 @@ void SendData::on_creategroup(QList<int> list, QString groupname)
     QJsonDocument doc(json);
     QByteArray m_data = doc.toJson(QJsonDocument::Compact);
     packingjson(m_data);
+    qDebug()<<"客户端发送创建群聊信息------------------"<<'\n';
 }
 
 void SendData::on_groupchatsign()
