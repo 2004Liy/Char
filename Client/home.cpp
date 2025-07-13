@@ -756,13 +756,13 @@ void Home::on_creategroupchat(QString name, int id, QByteArray data)//创建群�
     chatscroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     chatmap[id]=chatscroll;
     FriendItem *newfrienditem=new FriendItem(this);
+    newfrienditem->setisgroup();
     QPixmap pix;
     pix.loadFromData(data);
     newfrienditem->init(id,name,pix);
     QListWidgetItem *item=new QListWidgetItem(friendwidget);
     friendwidget->setItemWidget(item,newfrienditem);
     item->setSizeHint(QSize(300,80));
-    qDebug()<<"创建群聊列表"<<'\n';
 }
 
 void Home::on_setgroupchat(QList<int> list)
