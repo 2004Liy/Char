@@ -169,52 +169,60 @@ void FileWorker::filereaddata(QTcpSocket *filetcp)
             file.close();
             ctx->receivedSize+=data.size();
             ctx->data.append(data);
+            LinkSQL sql;
             if(ctx->totalSize>0&&ctx->receivedSize>=ctx->totalSize){
-                mutexmutex.lock();
-                QMutex *usermutes=mutexmap[id];
-                mutexmutex.unlock();
-                usermutes->lock();
+                auto array = std::make_shared<QByteArray>(ctx->data);
+                auto Fileid = std::make_shared<qint64>(ctx->fileId);
+                auto Total = std::make_shared<qint64>(ctx->totalSize);
                 if(ctx->type=="updateinformation"){
-                    LinkSQL sql;
                     connect(&sql,&LinkSQL::frienddata,this,[=](int friendid){
-                        QByteArray ctxdata=ctx->data;
-                        idmarkmutex.lock();
+                        LinkSQL sql2;
+                        if(sql2.isgroupchat(friendid)){
+                            return;
+                        }
+                        QByteArray ctxdata=*array;
+                        QMutexLocker locker(&idmarkmutex);
                         QString friendmark=idmarkmap[friendid];
-                        idmarkmutex.unlock();
                         QJsonObject json;
+                        qint64 fileid1=*Fileid;
                         json["type"]="friendpicturechanged";
                         json["friendid"]=id;
-                        json["fileid"]=ctx->fileId;
-                        json["size"]=ctx->totalSize;
+                        json["fileid"]=*Fileid;
+                        json["size"]=*Total;
                         QJsonDocument doc(json);
                         QByteArray m_data;
                         m_data = doc.toJson(QJsonDocument::Compact);
                         qint64 len = qToBigEndian<qint64>(m_data.size());
                         QByteArray newdata(reinterpret_cast<const char*>(&len), sizeof(len));
                         newdata.append(m_data);
+                        bool isnull=0;
                         socketmapmutex.lock();
                         if(socketmap[friendmark].msgworker!=NULL){
-                            socketmap[friendmark].msgworker->otherthreadsendmsg(newdata);
+                            isnull=1;
                         }
                         socketmapmutex.unlock();
-                        QDataStream stream(&ctxdata, QIODevice::ReadOnly);
-                        const qint64 CHUNK_SIZE = 1024 * 50;
-                        qDebug()<<"发送头像文件"<<'\n';
-                        while(!stream.atEnd()){
-                            QByteArray newdata(CHUNK_SIZE, 0);
-                            qint64 bytesRead = stream.readRawData(newdata.data(), CHUNK_SIZE);
-
-                            if (bytesRead < CHUNK_SIZE) {
-                                newdata.resize(bytesRead);
+                        if(isnull){
+                            int p=1;
+                            while(p--){//避免死锁
+                                QMutexLocker locker1(&socketmapmutex);
+                                socketmap[friendmark].msgworker->otherthreadsendmsg(newdata);
                             }
-                            packingfile(newdata,ctx->fileId,idmarkmap[friendid],friendid);
+                            QDataStream stream(&ctxdata, QIODevice::ReadOnly);
+                            const qint64 CHUNK_SIZE = 1024 * 50;
+                            while(!stream.atEnd()){
+                                QByteArray newdata(CHUNK_SIZE, 0);
+                                qint64 bytesRead = stream.readRawData(newdata.data(), CHUNK_SIZE);
+
+                                if (bytesRead < CHUNK_SIZE) {
+                                    newdata.resize(bytesRead);
+                                }
+                                packingfile(newdata,fileid1,friendmark,friendid);
+                            }
                         }
-                        qDebug()<<"发送完毕"<<'\n';
                     });
                     sql.selectfriend(id);
                 }
                 queue->removeAll(*ctx);
-                usermutes->unlock();
             }
         }else if(mark==2){
             qint64 toid;
