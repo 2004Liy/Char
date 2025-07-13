@@ -356,9 +356,9 @@ void MsgWorker::managejson(QByteArray data, QTcpSocket *msgtcp)
             newdata.append(m_data);
             socketmapmutex.lock();
             idmarkmutex.lock();
-            socketmap[idmarkmap[friendid]].msgworker->otherthreadsendmsg(newdata);
-            //emit socketmap[idmarkmap[friendid]].msgworker->senddatasignal(newdata);
-            //QTcpSocket *msgtcp=socketmap[idmarkmap[friendid]].msgsocket;
+            if(socketmap[idmarkmap[friendid]].msgworker!=NULL){
+                socketmap[idmarkmap[friendid]].msgworker->otherthreadsendmsg(newdata);
+            }
             idmarkmutex.unlock();
             socketmapmutex.unlock();
         });
@@ -387,7 +387,9 @@ void MsgWorker::managejson(QByteArray data, QTcpSocket *msgtcp)
             newdata.append(m_data);
             socketmapmutex.lock();
             idmarkmutex.lock();
-            socketmap[idmarkmap[friendid]].msgworker->otherthreadsendmsg(newdata);
+            if(socketmap[idmarkmap[friendid]].msgworker!=NULL){
+                socketmap[idmarkmap[friendid]].msgworker->otherthreadsendmsg(newdata);
+            }
             //emit socketmap[idmarkmap[friendid]].msgworker->senddatasignal(newdata);
             idmarkmutex.unlock();
             socketmapmutex.unlock();
@@ -510,20 +512,38 @@ void MsgWorker::managejson(QByteArray data, QTcpSocket *msgtcp)
             offlinemsgmapmutex.unlock();
         }
     }else if(type=="creategroup"){
-        QString name=request["name"].toString();
-        QList<int>list;
+        qDebug()<<"接收到创建群聊信号-----------------"<<'\n';
+        QString *name=new QString;
+        *name=request["name"].toString();
+        QList<int>*list=new QList<int>;
         QJsonArray array=request["memberid"].toArray();
         for(int i=0;i<array.count();i++){
-            list<<array[i].toInt();
+            *list<<array[i].toInt();
+            qDebug()<<"群聊成员id："<<array[i].toInt()<<'\n';
         }
-        int p;
+        int *p=new int;
         LinkSQL sql;
         connect(&sql,&LinkSQL::createtableok,this,[&](){
-            sql.addmember(list,p);
-            sendgroupchat(list,name,p);
+            LinkSQL sql1;
+            sql1.addmember(*list,*p);
+            sendgroupchat(*list,*name,*p);
         });
-        int id=sql.insertuser(name,"1111");
-        p=id;
+        int id=sql.insertuser(*name,"1111");
+        *p=id;
+        connect(this,&MsgWorker::deletegroupdata,this,[&](){
+            if(p!=NULL){
+                delete p;
+                p=NULL;
+            }
+            if(name!=NULL){
+                delete name;
+                name=NULL;
+            }
+            if(list!=NULL){
+                delete list;
+                list=NULL;
+            }
+        });
         sql.insertgroupchat(id);
     }else if(type=="sendmsgingroup"){
         int groupchatid=request["groupchatid"].toInt();
@@ -647,6 +667,7 @@ void MsgWorker::packingfile(const QByteArray &chunk, qint64 fileid, QString mark
 
 void MsgWorker::addfilequeue(QQueue<FileTransferContext> *queue, qint64 fileid, QString type, qint64 size, int id)
 {
+    LinkSQL sql;
     FileTransferContext *ctx=NULL;
     for(auto &them:*queue){
         if(them.fileId==fileid){
@@ -654,73 +675,77 @@ void MsgWorker::addfilequeue(QQueue<FileTransferContext> *queue, qint64 fileid, 
             break;
         }
     }
+    mutexmutex.lock();
+    QMutex *usermutex=mutexmap[id];
+    mutexmutex.unlock();
+    usermutex->lock();
     if(ctx==NULL){
         FileTransferContext newctx;
         newctx.type=type;
         newctx.fileId=fileid;
         newctx.totalSize=size;
-        newctx.data.reserve(size);
         newctx.receivedSize=0;
-        mutexmutex.lock();
-        QMutex *usermutex=mutexmap[id];
-        mutexmutex.unlock();
-        usermutex->lock();
         queue->enqueue(newctx);
-        usermutex->unlock();
     }else{
         ctx->totalSize=size;
         ctx->type=type;
-        ctx->data.reserve(size);
-        if(ctx->receivedSize>=ctx->totalSize){
-            LinkSQL sql;
-            mutexmutex.lock();
-            QMutex *usermutex=mutexmap[id];
-            mutexmutex.unlock();
-            usermutex->lock();
+        if(ctx->totalSize>0&&ctx->receivedSize>=ctx->totalSize){
+            auto array = std::make_shared<QByteArray>(ctx->data);
+            auto Fileid = std::make_shared<qint64>(ctx->fileId);
+            auto Total = std::make_shared<qint64>(ctx->totalSize);
             if(ctx->type=="updateinformation"){
                 connect(&sql,&LinkSQL::frienddata,this,[=](int friendid){
-                    QByteArray ctxdata=ctx->data;
-                    idmarkmutex.lock();
+                    LinkSQL sql2;
+                    if(sql2.isgroupchat(friendid)){
+                        return;
+                    }
+                    QByteArray ctxdata=*array;
+                    QMutexLocker locker(&idmarkmutex);
                     QString friendmark=idmarkmap[friendid];
-                    idmarkmutex.unlock();
-
                     QJsonObject json;
+                    qint64 fileid1=*Fileid;
                     json["type"]="friendpicturechanged";
                     json["friendid"]=id;
-                    json["fileid"]=ctx->fileId;
-                    json["size"]=ctx->totalSize;
+                    json["fileid"]=*Fileid;
+                    json["size"]=*Total;
                     QJsonDocument doc(json);
                     QByteArray m_data;
                     m_data = doc.toJson(QJsonDocument::Compact);
                     qint64 len = qToBigEndian<qint64>(m_data.size());
                     QByteArray newdata(reinterpret_cast<const char*>(&len), sizeof(len));
                     newdata.append(m_data);
+                    bool isnull=0;
                     socketmapmutex.lock();
                     if(socketmap[friendmark].msgworker!=NULL){
-                        socketmap[friendmark].msgworker->otherthreadsendmsg(newdata);
-                        //emit socketmap[friendmark].msgworker->senddatasignal(newdata);
+                        isnull=1;
                     }
                     socketmapmutex.unlock();
-                    QDataStream stream(&ctxdata, QIODevice::ReadOnly);
-                    const qint64 CHUNK_SIZE = 1024 * 50;
-                    qDebug()<<"发送头像文件"<<'\n';
-                    while(!stream.atEnd()){
-                        QByteArray newdata(CHUNK_SIZE, 0);
-                        qint64 bytesRead = stream.readRawData(newdata.data(), CHUNK_SIZE);
-
-                        if (bytesRead < CHUNK_SIZE) {
-                            newdata.resize(bytesRead);
+                    if(isnull){
+                        int p=1;
+                        while(p--){//避免死锁
+                            QMutexLocker locker1(&socketmapmutex);
+                            socketmap[friendmark].msgworker->otherthreadsendmsg(newdata);
                         }
-                        packingfile(newdata,ctx->fileId,idmarkmap[friendid],friendid);
+                        QDataStream stream(&ctxdata, QIODevice::ReadOnly);
+                        const qint64 CHUNK_SIZE = 1024 * 50;
+                        while(!stream.atEnd()){
+                            QByteArray newdata(CHUNK_SIZE, 0);
+                            qint64 bytesRead = stream.readRawData(newdata.data(), CHUNK_SIZE);
+
+                            if (bytesRead < CHUNK_SIZE) {
+                                newdata.resize(bytesRead);
+                            }
+                            packingfile(newdata,fileid1,idmarkmap[friendid],friendid);
+                        }
                     }
-                    qDebug()<<"发送完毕"<<'\n';
                 });
                 sql.selectfriend(id);
             }
             queue->removeAll(*ctx);
-            usermutex->unlock();
+
         }
     }
+    usermutex->unlock();
 }
 
 void MsgWorker::addfriend(QString type, QString mark, int userid, int friendid, QString friendname, bool isgroupchat, int allsize, int cursize)
@@ -877,6 +902,7 @@ void MsgWorker::sendgroupchat(QList<int> &list, QString chatname, int groupchati
         idmarkmutex.unlock();
         socketmapmutex.lock();
         if(socketmap[mark].msgworker==NULL){
+            socketmapmutex.unlock();
             continue;
         }
         qint64 filesize;
@@ -900,6 +926,20 @@ void MsgWorker::sendgroupchat(QList<int> &list, QString chatname, int groupchati
         }
         file.close();
     }
+    LinkSQL sql;
+    for(int i=0;i<list.count();i++){
+        for(int j=0;j<list.count();j++){
+            QString name=sql.selectname(list[j]);
+            bool p=1;
+            if(sql.selecticon(list[j]).isEmpty()){
+                p=0;
+            }else{
+                p=1;
+            }
+            initgroupchat(list[i],groupchatid,list[j],p,name);
+        }
+    }
+    emit deletegroupdata();
 }
 
 void MsgWorker::initgroupchat(int myid, int groupchatid, int groupmemberid, bool path, QString groupmembername)
@@ -931,6 +971,7 @@ void MsgWorker::initgroupchat(int myid, int groupchatid, int groupmemberid, bool
     idmarkmutex.unlock();
     socketmapmutex.lock();
     if(socketmap[mark].msgworker==NULL){
+        socketmapmutex.unlock();
         return;
     }
     QJsonDocument doc(json);
@@ -1014,7 +1055,7 @@ void MsgWorker::sendmsgingroup(int groupchatid, int sender, QString msg, int id)
     }
     socketmapmutex.unlock();
 }
-
+//ctx
 void MsgWorker::msgreaddata(QTcpSocket *msgtcp)
 {
     while(msgtcp->bytesAvailable()>0){
