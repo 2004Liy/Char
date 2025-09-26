@@ -22,6 +22,7 @@ SOURCES += \
     isfriend.cpp \
     main.cpp \
     mainwindow.cpp \
+    mybase.cpp \
     myinformation.cpp \
     mysendfile.cpp \
     prompt.cpp \
@@ -43,6 +44,7 @@ HEADERS += \
     home.h \
     isfriend.h \
     mainwindow.h \
+    mybase.h \
     myinformation.h \
     mysendfile.h \
     prompt.h \
