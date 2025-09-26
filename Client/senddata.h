@@ -12,12 +12,16 @@
 #include<FileTransferContext.h>
 #include<QFile>
 #include<QTimer>
+#include<QMap>
+#include<QList>
+#include "mybase.h"
 
 class SendData : public QObject
 {
     Q_OBJECT
 public:
     explicit SendData(QObject *parent = nullptr);
+    ~SendData();
 
 private:
     QUdpSocket *udpsocket=NULL;
@@ -34,6 +38,8 @@ private:
     QString name;
     QPixmap profilephoto;
     QTimer *timer1;
+    QMap<QString,MyBase*>*map=nullptr;
+    QList<MyBase*>mylist;
 
 private:
     void getudpsocket();
@@ -72,7 +78,7 @@ public slots:
     void on_sendpixtogroupchat(int groupchatid,QString path,int senderid);
     void on_sendfiletogroup(int groupid,QString path,int senderid);
 
-public:signals:
+signals:
     void logonsuccsee(int id,QString name);
     void logonfailure();
     void logonsuccseeicon(QByteArray icon);
@@ -98,6 +104,6 @@ public:signals:
     void groupchatmsg(int groupchatid,QString msg,int senderid);
     void sendpixingroup(int groupchatid,int senderid,QByteArray data,int h,int w);
     void ingroupsendfile(int senderid,qint64 size,QString filename,QString suffix,int groupid);
+    void runinit();
 };
-
 #endif // SENDDATA_H
