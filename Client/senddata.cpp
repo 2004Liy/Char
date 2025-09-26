@@ -8,7 +8,119 @@
 
 SendData::SendData(QObject *parent)
     : QObject{parent}
-{}
+{
+    map=new QMap<QString,MyBase*>;
+    connect(this,&SendData::runinit,this,&SendData::init);
+    emit runinit();
+    Register1* logon=new Register1(mark);
+    connect(logon,&Register1::addfilequeuesignal,this,&SendData::addfilequeue);
+    connect(logon,&Register1::logonsuccsee1,this,[this](int m_id,QString m_name){
+        this->id=m_id;
+        this->name=m_name;
+        emit this->logonsuccsee(m_id,m_name);
+    });
+    connect(logon,&Register1::logonfailure,this,&SendData::logonfailure);
+    connect(logon,&Register1::logoning,this,&SendData::logoning);
+    map->insert("logon",logon);
+    mylist.append(logon);
+
+    Login* login=new Login(mark);
+    connect(login,&Login::addfilequeuesignal,this,&SendData::addfilequeue);
+    connect(login,&Login::loginsuccsee,this,[this](int m_id,QString m_name){
+        this->id=m_id;
+        this->name=m_name;
+        emit this->logonsuccsee(m_id,m_name);
+    });
+    connect(login,&Login::loginfailure,this,&SendData::loginfailure);
+    map->insert("login",login);
+    mylist.append(login);
+
+    InitfriendOragreeadd *initfr=new InitfriendOragreeadd(mark);
+    connect(initfr,&InitfriendOragreeadd::addfilequeuesignal,this,&SendData::addfilequeue);
+    connect(initfr,&InitfriendOragreeadd::senddata,this,[this](QByteArray& byte){
+        filesocket->write(byte);
+        filesocket->flush();
+    });
+    map->insert("initfriend",initfr);
+    map->insert("agreeadd",initfr);
+    mylist.append(initfr);
+
+    Selectuser* selectuser=new Selectuser(mark);
+    connect(selectuser,&Selectuser::addfilequeuesignal,this,&SendData::addfilequeue);
+    connect(selectuser,&Selectuser::isnullid,this,&SendData::isnullid);
+    map->insert("selectuser",selectuser);
+    mylist.append(selectuser);
+
+    Friendrequest *friendrequest=new Friendrequest(mark);
+    connect(friendrequest,&Friendrequest::addfilequeuesignal,this,&SendData::addfilequeue);
+    map->insert("friendrequest",friendrequest);
+    mylist.append(friendrequest);
+
+    Sendmsg *sendmsg=new Sendmsg(mark);
+    connect(sendmsg,&Sendmsg::receivesendmsg,this,&SendData::receivesendmsg);
+    map->insert("sendmsg",sendmsg);
+    mylist.append(sendmsg);
+
+    Sendfile* sendfile=new Sendfile(mark);
+    connect(sendfile,&Sendfile::frinedsendfile,this,&SendData::frinedsendfile);
+    connect(sendfile,&Sendfile::addfilequeuesignal,this,&SendData::addfilequeue);
+    map->insert("sendfile",sendfile);
+    mylist.append(sendfile);
+
+    Sendpicture* sendpicture=new Sendpicture(mark);
+    connect(sendpicture,&Sendpicture::addfilequeuesignal,this,&SendData::addfilequeue);
+    map->insert("sendpicture",sendpicture);
+    mylist.append(sendpicture);
+
+    Friendpicturechanged* friendpicturechanged=new Friendpicturechanged(mark);
+    connect(friendpicturechanged,&Friendpicturechanged::addfilequeuesignal,this,&SendData::addfilequeue);
+    map->insert("friendpicturechanged",friendpicturechanged);
+    mylist.append(friendpicturechanged);
+
+    Friendnamechanged *friendnamechanged=new Friendnamechanged(mark);
+    connect(friendnamechanged,&Friendnamechanged::friendnamechanged,this,&SendData::friendnamechanged);
+    map->insert("friendnamechanged",friendnamechanged);
+    mylist.append(friendnamechanged);
+
+    Creategroupchat* creategroupchat=new Creategroupchat(mark);
+    connect(creategroupchat,&Creategroupchat::addfilequeuesignal,this,&SendData::addfilequeue);
+    map->insert("creategroupchat",creategroupchat);
+    mylist.append(creategroupchat);
+
+    Setgroupchat* setgroupchat=new Setgroupchat(mark);
+    connect(setgroupchat,&Setgroupchat::setgroupchat,this,&SendData::setgroupchat);
+    map->insert("setgroupchat",setgroupchat);
+    mylist.append(setgroupchat);
+
+    Initgroupchat* initgroupchat=new Initgroupchat(mark);
+    connect(initgroupchat,&Initgroupchat::addfilequeuesignal,this,&SendData::addfilequeue);
+    map->insert("initgroupchat",initgroupchat);
+    mylist.append(initgroupchat);
+
+    Groupchatmsg* groupchatmsg=new Groupchatmsg(mark);
+    connect(groupchatmsg,&Groupchatmsg::groupchatmsg,this,&SendData::groupchatmsg);
+    map->insert("groupchatmsg",groupchatmsg);
+    mylist.append(groupchatmsg);
+
+    Sendpixingroup* sendpixingroup=new Sendpixingroup(mark);
+    connect(sendpixingroup,&Sendpixingroup::addfilequeuesignal,this,&SendData::addfilequeue);
+    map->insert("sendpixingroup",sendpixingroup);
+    mylist.append(sendpixingroup);
+
+    Sendfiletogroup* sendfiletogroup=new Sendfiletogroup(mark);
+    connect(sendfiletogroup,&Sendfiletogroup::ingroupsendfile,this,&SendData::ingroupsendfile);
+    connect(sendfiletogroup,&Sendfiletogroup::addfilequeuesignal,this,&SendData::addfilequeue);
+    map->insert("sendfiletogroup",sendfiletogroup);
+    mylist.append(sendfiletogroup);
+}
+
+SendData::~SendData()
+{
+    for(auto at:mylist){
+        delete at;
+    }
+    delete map;
+}
 
 
 void SendData::init()
@@ -78,6 +190,7 @@ void SendData::on_filereadyRead()//处理filesocket接收的消息
             beforfilemutex.lock();
             BeforFiledata filedata;
             filedata.fileid=fileid;
+            qDebug()<<data.size()<<'\n';
             filedata.data.append(data);
             beforfilequeue.enqueue(filedata);
             beforfilemutex.unlock();
@@ -223,7 +336,6 @@ void SendData::packingjson(const QByteArray &m_data)//把要发送的json打包�
 
 void SendData::handleMessages()//异步处理msgqueue中的数据
 {
-    //QMutexLocker locker(&msgmutex);
     while(!msgqueue.empty()){
         QByteArray data = msgqueue.front();
         msgqueue.pop_front();
@@ -236,162 +348,10 @@ void SendData::processJson(const QJsonObject &json)
 {
     QString type=json["type"].toString();
     qDebug()<<"json到达  type:"<<type<<'\n';
-    if(type=="logon"){//登录
-        int num=json["num"].toInt();
-        if(num==1){
-            id=json["id"].toInt();
-            name=json["name"].toString();
-            qint64 size=static_cast<qint64>(json["size"].toDouble());
-            qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-            addfilequeue(fileid,type,size);
-            emit logonsuccsee(id,name);
-            qDebug()<<"登录成功"<<'\n';
-        }else if(num==0){
-            emit logonfailure();
-            qDebug()<<"登录失败"<<'\n';
-        }else if(num==2){
-            emit logoning();
-            qDebug()<<"其他设备登录"<<'\n';
-        }
-    }else if(type=="login"){//注册
-        int num=json["num"].toInt();
-        if(num==1){
-            qDebug()<<"收到注册返回"<<'\n';
-            id=json["id"].toInt();
-            name=json["name"].toString();
-            qint64 size=static_cast<qint64>(json["size"].toDouble());
-            qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-            addfilequeue(fileid,type,size);
-            emit loginsuccsee(id,name);
-        }else{
-            emit loginfailure();
-        }
-    }else if(type=="initfriend"||type=="agreeadd"){
-        int friendid=json["friendid"].toInt();
-        int allnum=json["allnum"].toInt();
-        int curnum=json["curnum"].toInt();
-        QString friendname=json["friendname"].toString();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        addfilequeue(fileid,type,size,friendid,friendname,"",allnum,curnum);
-        QJsonObject filejson;
-        filejson["mark"]=mark;
-        QJsonDocument filedoc(filejson);
-        QByteArray filedata = filedoc.toJson(QJsonDocument::Compact);
-        QByteArray newfiledata;
-        qint64 len = qToBigEndian<qint64>(filedata.size());
-        qint64 filemark = qToBigEndian<qint64>(5);
-        newfiledata.append(reinterpret_cast<const char*>(&filemark), sizeof(filemark));
-        newfiledata.append(reinterpret_cast<const char*>(&len), sizeof(len));
-        newfiledata.append(filedata);
-        filesocket->write(newfiledata);
-        filesocket->flush();
-    }else if(type=="selectuser"){
-        int num=json["num"].toInt();
-        if(num){
-            int friendid=json["friendid"].toInt();
-            QString friendname=json["friendname"].toString();
-            qint64 size=static_cast<qint64>(json["size"].toDouble());
-            qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-            addfilequeue(fileid,type,size,friendid,friendname);
-        }else{
-            emit isnullid();
-        }
-    }else if(type=="friendrequest"){
-        int friendid=json["friendid"].toInt();
-        QString friendname=json["friendname"].toString();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        addfilequeue(fileid,type,size,friendid,friendname);
-    }else if(type=="sendmsg"){
-        int fromid=json["fromid"].toInt();
-        QString msg=json["msg"].toString();
-        emit receivesendmsg(fromid,msg);
-    }else if(type=="sendfile"){
-        int fromid=json["fromid"].toInt();
-        int toid=json["toid"].toInt();
-        QString filename=json["filename"].toString();
-        QString suffix=json["suffix"].toString();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        QString path="chat/"+QString::number(fromid)+"to"+QString::number(toid)+filename;
-        QFile file(path);
-        file.open(QIODevice::WriteOnly);
-        file.close();
-        emit frinedsendfile(size,filename,suffix,fromid);
-        addfilequeue(fileid,type,size,0,"",path);
-    }else if(type=="sendpicture"){
-        int fromid=json["fromid"].toInt();
-        int h=json["h"].toInt();
-        int w=json["w"].toInt();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        addfilequeue(fileid,type,size,fromid,"","",h,w);
-    }else if(type=="friendpicturechanged"){
-        qDebug()<<"收到更换头像信号"<<'\n';
-        int friendid=json["friendid"].toInt();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        addfilequeue(fileid,type,size,friendid);
-    }else if(type=="friendnamechanged"){
-        int friendid=json["friendid"].toInt();
-        QString friendnewname=json["friendnewname"].toString();
-        emit friendnamechanged(friendid,friendnewname);
-    }else if(type=="creategroupchat"){
-        qDebug()<<"收到群聊json"<<'\n';
-        int groupchatid=json["id"].toInt();
-        QString groupchatname=json["name"].toString();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        addfilequeue(fileid,type,size,groupchatid,groupchatname);
-    }else if(type=="setgroupchat"){
-        qDebug()<<"-------------收到初始群聊标记"<<'\n';
-        QJsonArray array=json["groupid"].toArray();
-        QList<int>list;
-        qDebug()<<"群聊id: ";
-        for(int i=0;i<array.count();i++){
-            list<<array[i].toInt();
-            qDebug()<<array[i].toInt()<<" ";
-        }
-        qDebug()<<'\n';
-        emit setgroupchat(list);
-        qDebug()<<"群聊标记完成"<<'\n';
-    }else if(type=="initgroupchat"){
-        int groupchatid=json["groupchatid"].toInt();
-        int groupmemberid=json["groupmemberid"].toInt();
-        QString groupmembername=json["groupmembername"].toString();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        addfilequeue(fileid,type,size,groupchatid,groupmembername,"",groupmemberid);
-    }else if(type=="groupchatmsg"){
-        int groupchatid=json["groupchatid"].toInt();
-        QString msg=json["msg"].toString();
-        int senderid=json["sender"].toInt();
-        emit groupchatmsg(groupchatid,msg,senderid);
-    }else if(type=="sendpixingroup"){
-        qDebug()<<"收到群聊图片头部"<<'\n';
-        int groupchatid=json["groupchatid"].toInt();
-        int senderid=json["senderid"].toInt();
-        int h=json["h"].toInt();
-        int w=json["w"].toInt();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        addfilequeue(fileid,type,size,senderid,"","",h,w,groupchatid);
-    }else if(type=="sendfiletogroup"){
-        qDebug()<<"收到文件前缀"<<'\n';
-        int senderid=json["senderid"].toInt();
-        int groupid=json["groupchatid"].toInt();
-        QString filename=json["filename"].toString();
-        QString suffix=json["suffix"].toString();
-        qint64 size=static_cast<qint64>(json["size"].toDouble());
-        qint64 fileid=static_cast<qint64>(json["fileid"].toDouble());
-        QString path="chat/"+QString::number(senderid)+"to"+QString::number(this->id)+filename;
-        // QFile file(path);
-        // file.open(QIODevice::WriteOnly);
-        // file.close();
-        emit ingroupsendfile(senderid,size,filename,suffix,groupid);
-        addfilequeue(fileid,type,size,0,"",path);
+    if(type=="sendfiletogroup"){
+        (*map)[type]->mysetid(this->id);
     }
+    (*map)[type]->manage(json,type);
 }
 
 void SendData::addfilequeue(qint64 fileid, QString type,qint64 size,int friendid,QString friendname,QString path,int h,int w,int groupid)
